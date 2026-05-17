@@ -405,17 +405,6 @@ void loop() {
   if (allprint == 1) {
     DEBUG_PRINTln(scale_read * scale_calibration);
   }
-
-
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////
-  /////////////////////  Control Loop ////////////////////////////////////////////////////////////
-
-
-  //  DEBUG_PRINTln( num_chicks * (0.004095238095 * days + 0.04857142857));
-
-
-  // DEBUG_PRINT_WAIT("Loop");
 }
 
 
@@ -860,7 +849,7 @@ void Servo_Sweep() {
 }
 
 void servoOpen() {
-   myservo.attach(servo_pin);
+  myservo.attach(servo_pin);
   for (int posDegrees = 0; posDegrees <= open_ang; posDegrees++) {
     myservo.write(posDegrees);
     DEBUG_PRINTln(posDegrees);
@@ -871,17 +860,17 @@ void servoOpen() {
 }
 void servoClose() {
 
- myservo.attach(servo_pin);
- //
+  myservo.attach(servo_pin);
+  //
 
-    for (int posDegrees = open_ang; posDegrees >= 0; posDegrees--) {
-      myservo.write(posDegrees);
-      DEBUG_PRINTln(posDegrees);
-      delay(5);
-    }
-    opened = LOW;
-    myservo.detach();
- // }
+  for (int posDegrees = open_ang; posDegrees >= 0; posDegrees--) {
+    myservo.write(posDegrees);
+    DEBUG_PRINTln(posDegrees);
+    delay(5);
+  }
+  opened = LOW;
+  myservo.detach();
+  // }
 }
 void drawProgressbar(int x, int y, int width, int height, int progress) {
   progress = progress > 100 ? 100 : progress;  // set the progress value to 100

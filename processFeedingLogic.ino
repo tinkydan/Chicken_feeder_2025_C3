@@ -1,6 +1,10 @@
 void processFeedingLogic() {
 
 
+  //display.setCursor(0, 23 + 3 * 8);
+  //display.print(Last_f2);
+  //display.display();
+
   //  DEBUG_PRINTln("If scale is ready: " + String(scale.is_ready()) );
   if (scale.is_ready()) {
     if (makeTime(tm) > 0) {
@@ -25,10 +29,13 @@ void processFeedingLogic() {
 
 
     if (FEED_NOW || ((hour_fed + int(100 * days) != hour_cur + int(100 * days)) && ((hour_cur == HOUR_F_1) || (hour_cur == HOUR_F_2)))) {
-      if (first_loop) {
+      if (first_loop) {  // Setup feeder for feeding
         if (do_not_zero == 0) {
           zero = reading;
         } else {
+          display.setCursor(0, 0);
+          display.println("Scale reading high feeding has likely been interupted, restarting");
+          display.display();
           DEBUG_PRINTln("Scale reading high feeding has likely been interupted, restarting");
           zero = long(Weight_baseline / scale_calibration);
         }
@@ -38,31 +45,15 @@ void processFeedingLogic() {
         first_loop = LOW;
         Hopper_Weight = Hopper_Weight_Max;
 
-        /*
-
-                display.setCursor(0, 1 * 8);
-                display.print("F                   ");
-                display.setCursor(2 * 5, 1 * 8);
-                display.print("TO:");
-                display.setCursor(5 * 5, 1 * 8);
-                display.print((sec_pp * day_feed / 2));
-                display.setCursor(10 * 5, 1 * 8);
-                display.print("CT:       ");
-                display.setCursor(13 * 5, 1 * 8);
-                display.print((currentMillis - FEED_MILLIS) / 1000);
-                display.setCursor(0, 2 * 8);
-                display.print(Last_f);
-        */
-        Last_f2 = Last_f;
-        Last_f = "";
-
-
 
         FEED_MILLIS = currentMillis;
 
         servoClose();
         display.println("Weight Hopper Closed");
+        display.display();
         dooropen();
+        display.println("Opening Feed Door");
+        display.display();
         delay(door_timeout * 255 / PWMDO);
         dooroff();
       }
@@ -74,7 +65,6 @@ void processFeedingLogic() {
       if ((currentMillis - FEED_MILLIS) / 1000 > ((sec_pp * day_feed / 2))) {
         full = 1;
         digitalWrite(Hoper_motor, LOW);
-
         DEBUG_PRINTln("Time Overrun");
       }
 
@@ -85,7 +75,9 @@ void processFeedingLogic() {
         if (Hopper_Weight < weight) {
           // The hopper needs to be emptied ever 12lb to prevent over filling
           Hopper_Weight = Hopper_Weight + Hopper_Weight_Max;
-
+          display.setCursor(0, 0);
+          display.println("To prevent hopper overfill, dumping");
+          display.display();
           digitalWrite(Hoper_motor, LOW);
           delay(1000);
           //  Weight_hold=weight;
@@ -94,7 +86,9 @@ void processFeedingLogic() {
           zero = zero - weight / scale_calibration;
 
           servoClose();
+          display.setCursor(0, 0);
           display.println("Weight Hopper Closed");
+          display.display();
           digitalWrite(Hoper_motor, HIGH);
 
           FEED_MILLIS = FEED_MILLIS + 21120;
@@ -134,52 +128,13 @@ void processFeedingLogic() {
 
 
           servoOpen();
-          // myservo.write(30);
-          // myservoB.write(150);
           Feeding = LOW;
           hour_fed = hour_cur + 100 * days;
           EEPROM.put(64, hour_fed);
           EEPROM.commit();
 
 
-
-
-          Last_f = "P";
-          if (month_cur > 9) {
-            Last_f = Last_f + String(month_cur);
-          } else {
-            Last_f = Last_f + "0";
-            Last_f = Last_f + String(month_cur);
-          }
-          Last_f = Last_f + "/";
-          if (date_cur > 9) {
-            Last_f = Last_f + String(date_cur);
-          } else {
-            Last_f = Last_f + "0";
-            Last_f = Last_f + String(date_cur);
-          }
-          Last_f = Last_f + " ";
-          if (hour_cur > 9) {
-            Last_f = Last_f + String(hour_cur);
-          } else {
-            Last_f = Last_f + "0";
-            Last_f = Last_f + String(hour_cur);
-          }
-          Last_f = Last_f + ":";
-          if (minute_cur > 9) {
-            Last_f = Last_f + String(minute_cur);
-          } else {
-            Last_f = Last_f + "0";
-            Last_f = Last_f + String(minute_cur);
-          }
-          Last_f = Last_f + " ";
-          Last_f = Last_f + String(weight);
-          Last_f = Last_f + "lb";
-
-
-
-
-
+          create_fed_status_string();
 
           Link = "";
 
@@ -211,7 +166,6 @@ void processFeedingLogic() {
           digitalWrite(Dis_motor, LOW);
           Dispensor_Cur = Dispensor_Cur - 1;
           servoClose();
- 
         }
       }
       DEBUG_PRINT_WAIT("FeedingLOOPEdn");
@@ -221,9 +175,49 @@ void processFeedingLogic() {
       myservo.write(open_ang);
       digitalWrite(Hoper_motor, LOW);
       if (opened) {
-      //servoClose();}
+        servoClose();
+      }
 
       //   myservoB.write(180);
     }
   }
+}
+
+
+void create_fed_status_string() {
+  Last_f2 = Last_f;
+  Last_f = "";
+
+
+  Last_f = "P";
+  if (month_cur > 9) {
+    Last_f = Last_f + String(month_cur);
+  } else {
+    Last_f = Last_f + "0";
+    Last_f = Last_f + String(month_cur);
+  }
+  Last_f = Last_f + "/";
+  if (date_cur > 9) {
+    Last_f = Last_f + String(date_cur);
+  } else {
+    Last_f = Last_f + "0";
+    Last_f = Last_f + String(date_cur);
+  }
+  Last_f = Last_f + " ";
+  if (hour_cur > 9) {
+    Last_f = Last_f + String(hour_cur);
+  } else {
+    Last_f = Last_f + "0";
+    Last_f = Last_f + String(hour_cur);
+  }
+  Last_f = Last_f + ":";
+  if (minute_cur > 9) {
+    Last_f = Last_f + String(minute_cur);
+  } else {
+    Last_f = Last_f + "0";
+    Last_f = Last_f + String(minute_cur);
+  }
+  Last_f = Last_f + " ";
+  Last_f = Last_f + String(weight);
+  Last_f = Last_f + "lb";
 }

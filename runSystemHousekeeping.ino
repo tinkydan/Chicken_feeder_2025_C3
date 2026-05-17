@@ -1,14 +1,14 @@
 void runSystemHousekeeping() {
   timeClient.update();
   ArduinoOTA.handle();
-  
+
   //esp_task_wdt_reset();
   /////////////////////////////////// WEB SEVER /////////////////////////////////
   server.handleClient();
   //timerWrite(watchdogTimer, 0);
-  
 
-/////////////////   Check on WiFi //////////////////////////////////////
+
+  /////////////////   Check on WiFi //////////////////////////////////////
   if (currentMillis - Con_LAST > Con_UPDATE_mS) {
     Con_LAST = currentMillis;
     if (WiFi.status() != WL_CONNECTED) {
@@ -17,10 +17,18 @@ void runSystemHousekeeping() {
     }
   }
 
-if ((door_off_time>0)&&((currentMillis>door_off_time))){
-  dooroff();
-}
+  /////////////// Thinkspeak resend if unsucsessful send
+  if ((currentMillis - ThgS_LAST > ThgS_UPDATE_mS) && need2send) {
+    if (client.connect(serverTS, 80)) {
+      client.print(Link);
+      DEBUG_PRINT(Link);
+      need2send = LOW;
+    }
+  }
 
+  if ((door_off_time > 0) && ((currentMillis > door_off_time))) {
+    dooroff();
+  }
 }
 
 

@@ -59,6 +59,9 @@ unsigned long currentMillis = 0;
 unsigned long EEPROM_Upload_ms = 2000;  //Min time between EEPROM Updates
 unsigned long EEPROM_Upload_LAST = 0;
 
+unsigned long ThgS_UPDATE_mS = 100000; // Retry thingspeak 
+unsigned long ThgS_LAST = 0;
+
 unsigned long FEED_MILLIS = 0;
 
 bool first = HIGH;
