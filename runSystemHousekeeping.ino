@@ -19,11 +19,7 @@ void runSystemHousekeeping() {
 
   /////////////// Thinkspeak resend if unsucsessful send
   if ((currentMillis - ThgS_LAST > ThgS_UPDATE_mS) && need2send) {
-    if (client.connect(serverTS, 80)) {
-      client.print(Link);
-      DEBUG_PRINT(Link);
-      need2send = LOW;
-    }
+      writeTS();
   }
 
   if ((door_off_time > 0) && ((currentMillis > door_off_time))) {

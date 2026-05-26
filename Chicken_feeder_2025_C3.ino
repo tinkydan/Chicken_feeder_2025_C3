@@ -15,11 +15,14 @@
 #include <Adafruit_SSD1306.h>
 #include <Adafruit_GFX.h>
 #include <NetworkUdp.h>
+//#include "secrets.h"
+#include "ThingSpeak.h"
 //LiquidCrystal_I2C lcd(0x3F, 20, 4); // set the LCD address to 0x27 for a 16 chars and 2 line display
 // Bring in our logo bitmap to keep things clean
 #include "coop_logo.h"
 #include "debug.h"
 #include "variables.h"
+
 
 
 void setup() {
@@ -97,7 +100,8 @@ void setup() {
     EEPROM.put(72, Weight_baseline);
     EEPROM.put(80, PWMDO);
     EEPROM.put(84, PWMDC);
-
+    EEPROM.get(88, hop_pps);
+    EEPROM.get(92, door_timeout);
     EEPROM.commit();
   }
   //| LATT | LONG | TIMZ | ARIS | ASET | UpLm | DnLm
@@ -119,7 +123,8 @@ void setup() {
   EEPROM.get(72, Weight_baseline);
   EEPROM.get(80, PWMDO);
   EEPROM.get(84, PWMDC);
-
+  EEPROM.get(88, hop_pps);
+  EEPROM.get(92, door_timeout);
 
   DEBUG_PRINT("READING EEPROM || Day Start: ");
   DEBUG_PRINTln(day_st);
@@ -148,10 +153,14 @@ void setup() {
   DEBUG_PRINT("READING EEPROM || Weight_baseline: ");
   DEBUG_PRINTln(Weight_baseline);
 
-
-
-
-
+  DEBUG_PRINT("READING  EEPROM || PWM Door Open: ");
+  DEBUG_PRINTln(PWMDO);
+  DEBUG_PRINT("READING  EEPROM || PWM Door Close: ");
+  DEBUG_PRINTln(PWMDC);
+  DEBUG_PRINT("READING EEPROM || Hopper Seconds per pound: ");
+  DEBUG_PRINTln(hop_pps);
+  DEBUG_PRINT("READING EEPROM || Door Actuation Time: ");
+  DEBUG_PRINTln(door_timeout);
 
 
 
@@ -240,42 +249,49 @@ void setup() {
 
   if (Weight_baseline <= 0 || ((scale_read * scale_calibration) < (Weight_baseline + 0.75))) {
 
-    myservo.attach(servo_pin);
-    //
-    display.clearDisplay();
 
-    display.setCursor(0, 0);
-    display.println("Testing Servo");
-    // put your setup code here, to run once:
-    display.display();
-    digitalWrite(Dis_motor, HIGH);
-    DEBUG_PRINTln("detach test");
+    if (1 == 0) {
+      myservo.attach(servo_pin);
+      //
+      display.clearDisplay();
 
-    for (pos = 0; pos <= open_ang / 2; pos += 1) {  // goes from 180 degrees to 0 degrees
-      myservo.write(pos);                           // tell servo to go to position in variable 'pos'
-      delay(5);                                     // waits 15ms for the servo to reach the position
+      display.setCursor(0, 0);
+      display.println("Testing Servo");
+      // put your setup code here, to run once:
+      display.display();
+      digitalWrite(Dis_motor, HIGH);
+      DEBUG_PRINTln("detach test");
+
+      for (pos = 0; pos <= open_ang / 2; pos += 1) {  // goes from 180 degrees to 0 degrees
+        myservo.write(pos);                           // tell servo to go to position in variable 'pos'
+        delay(5);                                     // waits 15ms for the servo to reach the position
+      }
+
+
+
+      display.println("Set halfway");
+      display.display();
+
+      delay(2000);
+      for (pos = open_ang / 2; pos <= open_ang; pos += 1) {  // goes from 180 degrees to 0 degrees
+        myservo.write(pos);                                  // tell servo to go to position in variable 'pos'
+        delay(5);                                            // waits 15ms for the servo to reach the position
+      }
+
+      display.println("Set Open");
+      display.display();
+      delay(2000);
+      for (pos = open_ang; pos >= 0; pos -= 1) {  // goes from 180 degrees to 0 degrees
+        myservo.write(pos);                       // tell servo to go to position in variable 'pos'
+        delay(5);                                 // waits 15ms for the servo to reach the position
+      }
+      display.println("Set Closed");
+      display.display();
+    } else {
+      pinMode(adj_pin, OUTPUT);
+      digitalWrite(adj_pin, LOW);
     }
 
-
-
-    display.println("Set halfway");
-    display.display();
-
-    delay(2000);
-    for (pos = open_ang / 2; pos <= open_ang; pos += 1) {  // goes from 180 degrees to 0 degrees
-      myservo.write(pos);                                  // tell servo to go to position in variable 'pos'
-      delay(5);                                            // waits 15ms for the servo to reach the position
-    }
-
-    display.println("Set Open");
-    display.display();
-    delay(2000);
-    for (pos = open_ang; pos >= 0; pos -= 1) {  // goes from 180 degrees to 0 degrees
-      myservo.write(pos);                       // tell servo to go to position in variable 'pos'
-      delay(5);                                 // waits 15ms for the servo to reach the position
-    }
-    display.println("Set Closed");
-    display.display();
     digitalWrite(Dis_motor, LOW);
 
     if (Weight_baseline > 0) {
@@ -343,10 +359,10 @@ void setup() {
   DEBUG_PRINT("IP address: ");
   DEBUG_PRINTln(WiFi.localIP());
 
-  DEBUG_PRINTln("detach servo");
-  myservo.detach();
+  //DEBUG_PRINTln("detach servo");
+  //myservo.detach();
 
-
+  ThingSpeak.begin(client);  // Initialize ThingSpeak
 
   if (!MDNS.begin("feeder")) {  // http://esp32.local
     MDNS.addService("http", "tcp", 80);
@@ -370,12 +386,12 @@ void setup() {
   server.on("/DOOROFF", dooroff);
   server.on("/DEBUG", Debugpage);
   server.on("/SERVOOPEN", servoOpen);
-  server.on("/SERVOCLOSE", servoClose);
+  //server.on("/SERVOCLOSE", servoClose(0));
   server.begin();
   DEBUG_PRINTln("HTTP server started");
 
 
-
+  digitalWrite(adj_pin, LOW);
   timeClient.begin();
 
   // watchdogTimer = timerBegin(0, 80, true); //timer 0 divisor 80
@@ -492,6 +508,12 @@ void handleRoot() {
   HTML += "CUR_ ON: ";
   HTML += String(cur_on);
 
+  HTML += "\n<br>full: ";
+  HTML += String(full);
+  HTML += "full_ish: ";
+  HTML += String(full_ish);
+   
+
 
   HTML += "<br><br>\r\n<a href=\"/DISPON\"\"><button>Soft On</button></a><a href=\"/DISPOFF\"\"><button>Soft Off</button></a>\r\n";
   HTML += "<br><br>\r\n<a href=\"/SWEEP\"\"><button>Servo Sweep</button></a><a href=\"/FEED_NOW\"\"><button>Feed Now</button></a>\r\n";
@@ -597,6 +619,18 @@ void SETTINGS() {
   HTML2 += String(PWMDC);
   HTML2 += "><br>";
 
+
+  HTML2 += "Hopper empty seconds per pound:<br>";
+  HTML2 += "<input type=\"text\" name=\"HSPP\" value=";
+  HTML2 += String(hop_pps);
+  HTML2 += "><br>";
+
+  HTML2 += "Door Timeout :<br>";
+  HTML2 += "<input type=\"text\" name=\"DOTO\" value=";
+  HTML2 += String(door_timeout);
+  HTML2 += "><br>";
+
+
   HTML2 += "<br><br>";
   HTML2 += "<input type=\"submit\" value=\"Submit\">";
   HTML2 += "</form> ";
@@ -642,6 +676,8 @@ void handleForm() {
     String WBL_S = server.arg("WBL");
     String PWM_DO = server.arg("PWMDO");
     String PWM_DC = server.arg("PWMDC");
+    String HSPP = server.arg("HSPP");
+    String DOTO = server.arg("DOTO");
 
     day_st = DAY_S.toInt();
     month_st = MONTH_S.toInt();
@@ -658,7 +694,8 @@ void handleForm() {
     Weight_baseline = WBL_S.toDouble();
     PWMDO = PWM_DO.toInt();
     PWMDC = PWM_DC.toInt();
-
+    hop_pps = HSPP.toInt();
+    door_timeout = DOTO.toInt();
 
     EEPROM.put(0, day_st);
     EEPROM.put(4, month_st);
@@ -675,6 +712,8 @@ void handleForm() {
     EEPROM.put(72, Weight_baseline);
     EEPROM.put(80, PWMDO);
     EEPROM.put(84, PWMDC);
+    EEPROM.put(88, hop_pps);
+    EEPROM.put(92, door_timeout);
 
 
 
@@ -710,6 +749,13 @@ void handleForm() {
     DEBUG_PRINTln(PWMDO);
     DEBUG_PRINT("SETTING EEPROM || Door Close PWM: ");
     DEBUG_PRINTln(PWMDC);
+
+
+  DEBUG_PRINT("READING EEPROM || Hopper Seconds per pound: ");
+  DEBUG_PRINTln(hop_pps);
+  DEBUG_PRINT("READING EEPROM || Door Actuation Time: ");
+  DEBUG_PRINTln(door_timeout);
+
     handleRoot();
     tm_st.Day = day_st;
     tm_st.Month = month_st;
@@ -719,6 +765,7 @@ void handleForm() {
 
 
 void dooropen() {
+  door_status = 1;
   if ((PWMDC == 255) && (PWMDO == 255)) {
     digitalWrite(IN1, HIGH);
     digitalWrite(IN2, LOW);
@@ -726,10 +773,16 @@ void dooropen() {
     analogWrite(IN1, PWMDO);
     analogWrite(IN2, 0);
   }
-  door_off_time = millis() + door_timeout * 255 / PWMDO;
+  door_off_time = millis() + door_timeout * 1000 * 255 / PWMDO;
+  DEBUG_PRINT("Feed Door Opening at current time: ");
+  DEBUG_PRINTln(millis());
+  DEBUG_PRINT("Will Stop at : ");
+  DEBUG_PRINTln(door_off_time);
+
 }
 
 void doorclose() {
+  door_status = 2;
   if ((PWMDC == 255) && (PWMDO == 255)) {
     digitalWrite(IN2, HIGH);
     digitalWrite(IN1, LOW);
@@ -737,10 +790,15 @@ void doorclose() {
     analogWrite(IN2, PWMDC);
     analogWrite(IN1, 0);
   }
-  door_off_time = millis() + door_timeout * 255 / PWMDC;
+  door_off_time = millis() + door_timeout * 1000 * 255 / PWMDC;
+    DEBUG_PRINT("Feed Door Closing at current time: ");
+  DEBUG_PRINTln(millis());
+  DEBUG_PRINT("Will Stop at : ");
+  DEBUG_PRINTln(door_off_time);
 }
 
 void dooroff() {
+  door_status = 0;
   if ((PWMDC == 255) && (PWMDO == 255)) {
     digitalWrite(IN2, LOW);
     digitalWrite(IN1, LOW);
@@ -847,30 +905,51 @@ void Servo_Sweep() {
 
   myservo.detach();
 }
+void servoOpenhttp() {
+  // Set the "Location" header to the target URL
+  DEBUG_PRINTln("redirecting to http://" + WiFi.localIP());
+  server.sendHeader("http://" + WiFi.localIP(), "/", true); 
+  // Send a 302 status code (Temporary Redirect)
+  server.send(302, "text/plain", ""); 
+  servoOpen();
+}
 
 void servoOpen() {
-  myservo.attach(servo_pin);
-  for (int posDegrees = 0; posDegrees <= open_ang; posDegrees++) {
-    myservo.write(posDegrees);
-    DEBUG_PRINTln(posDegrees);
-    delay(5);
+
+  if (1 == 1) {
+    dumping = 1;
+    digitalWrite(adj_pin, HIGH);
+    HopperWheel_LAST = millis();
+     weight2dump=(weight - (Hopper_Weight - 2*Hopper_Weight_Max));
+    DEBUG_PRINTln("Empting hopper began at: " + String(HopperWheel_LAST));
+     DEBUG_PRINTln("Will empty for: " + String((hop_pps * 1000 *  weight2dump)));
+    
+  } else {
+    myservo.attach(servo_pin);
+    for (int posDegrees = 0; posDegrees <= open_ang; posDegrees++) {
+      myservo.write(posDegrees);
+      DEBUG_PRINTln(posDegrees);
+      delay(5);
+    }
+    opened = HIGH;
+    myservo.detach();
   }
-  opened = HIGH;
-  myservo.detach();
 }
-void servoClose() {
-
-  myservo.attach(servo_pin);
-  //
-
-  for (int posDegrees = open_ang; posDegrees >= 0; posDegrees--) {
-    myservo.write(posDegrees);
-    DEBUG_PRINTln(posDegrees);
-    delay(5);
+void servoClose(int wait) {
+  if (1 == 0) {
+    myservo.attach(servo_pin);
+    //
+    delay(wait);
+    for (int posDegrees = open_ang; posDegrees >= 0; posDegrees--) {
+      myservo.write(posDegrees);
+      DEBUG_PRINTln(posDegrees);
+      delay(5);
+    }
+    opened = LOW;
+    myservo.detach();
+  } else {
+    digitalWrite(adj_pin, LOW);
   }
-  opened = LOW;
-  myservo.detach();
-  // }
 }
 void drawProgressbar(int x, int y, int width, int height, int progress) {
   progress = progress > 100 ? 100 : progress;  // set the progress value to 100
@@ -878,4 +957,25 @@ void drawProgressbar(int x, int y, int width, int height, int progress) {
   float bar = ((float)(width - 1) / 100) * progress;
   display.drawRect(x, y, width, height, WHITE);
   display.fillRect(x + 2, y + 2, bar, height - 4, WHITE);  // initailize the graphics fillRect(int x, int y, int width, int height)
+}
+
+
+void writeTS() {
+  float value_ts = weight;
+  ThingSpeak.setField(5, value_ts);
+  value_ts = (currentMillis - FEED_MILLIS) / 1000;
+  ThingSpeak.setField(6, value_ts);
+  value_ts = day_feed / 2;
+  ThingSpeak.setField(7, value_ts);
+  int x = ThingSpeak.writeFields(myChannelNumber, apiKey);
+  if (x == 200) {
+    Serial.println("Channel update successful.");
+    need2send = LOW;
+  } else {
+    client.stop();
+    WIFI_Connect();
+    ThingSpeak.begin(client);
+    need2send == HIGH;
+    Serial.println("Problem updating channel. HTTP error code " + String(x));
+  }
 }

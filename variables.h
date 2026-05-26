@@ -27,13 +27,17 @@ bool Dispensor = LOW;
 int Dispensor_Cur = 0;
 bool SLOPE = HIGH;
 int PWM_MAX = 300;
-int Hopper_Weight_Max = 12;
-int Hopper_Weight = 0;
+float Hopper_Weight_Max = 6;//8; // should be 6
+float Hopper_Weight = 0;
 int open_ang = 80;
 
+String myStatus = "";
 
 // replace with your channel's thingspeak API key,
-String apiKey = "3UL0GOPO09DLP047";
+const char * apiKey = "3UL0GOPO09DLP047";
+unsigned long myChannelNumber = 731828;
+
+
 const char* ssid = "TheWhitneys";
 const char* password = "icantremember";
 byte mac[6];
@@ -62,7 +66,17 @@ unsigned long EEPROM_Upload_LAST = 0;
 unsigned long ThgS_UPDATE_mS = 100000; // Retry thingspeak 
 unsigned long ThgS_LAST = 0;
 
+//unsigned long HopperWheel_empty_mS = 60000; // Retry thingspeak replaced with     EEPROM.get(88, hop_pps);
+unsigned long HopperWheel_LAST = 0;
+
 unsigned long FEED_MILLIS = 0;
+
+unsigned long pause_feed=0;
+
+int dumping=0;
+int mid_empty=0;
+int door_status=0;
+int hop_pps=35;
 
 bool first = HIGH;
 bool firstSU = HIGH;
@@ -77,8 +91,9 @@ bool full_ish = LOW;
 bool time_aval = LOW;
 int sec = 0;
 int mins = 0;
-static const int servo_pin = 3;
-
+static const int servo_pin = 300;
+int adj_pin=3;
+double weight2dump=0;
 
 int days = 0;
 int LOADCELL_DOUT_PIN = 20; //20;
@@ -91,7 +106,6 @@ int hour_fed = 0;
 
 int Hoper_motor = 0;
 int Dis_motor = 10;
-
 unsigned long door_off_time=0;
 int door_timeout=35*1000;  
 int PWMDO=255;

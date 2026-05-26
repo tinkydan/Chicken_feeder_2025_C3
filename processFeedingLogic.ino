@@ -1,10 +1,16 @@
 void processFeedingLogic() {
-
-
-  //display.setCursor(0, 23 + 3 * 8);
-  //display.print(Last_f2);
-  //display.display();
-
+  if (dumping==1){
+    if ((millis() - HopperWheel_LAST > (hop_pps * 1000 * weight2dump))) {
+    dumping = 2;
+    display.clearDisplay();
+    display.setCursor(0, 23 + 3 * 8);
+    display.print("Hopper has emptied");
+    display.display();
+    delay(1000);
+    DEBUG_PRINTln("Hopper has emptied");
+    digitalWrite(adj_pin, LOW);
+    }
+  }
   //  DEBUG_PRINTln("If scale is ready: " + String(scale.is_ready()) );
   if (scale.is_ready()) {
     if (makeTime(tm) > 0) {
@@ -26,8 +32,6 @@ void processFeedingLogic() {
 
     DEBUG_PRINTln(scale_read * scale_calibration);
 
-
-
     if (FEED_NOW || ((hour_fed + int(100 * days) != hour_cur + int(100 * days)) && ((hour_cur == HOUR_F_1) || (hour_cur == HOUR_F_2)))) {
       if (first_loop) {  // Setup feeder for feeding
         if (do_not_zero == 0) {
@@ -48,52 +52,68 @@ void processFeedingLogic() {
 
         FEED_MILLIS = currentMillis;
 
-        servoClose();
+        servoClose(0);
         display.println("Weight Hopper Closed");
         display.display();
         dooropen();
         display.println("Opening Feed Door");
         display.display();
-        delay(door_timeout * 255 / PWMDO);
-        dooroff();
+        //delay(door_timeout * 255 / PWMDO);
+        //dooroff();
       }
 
 
 
       DEBUG_PRINT_WAIT("Checking Feed Needs");
 
-      if ((currentMillis - FEED_MILLIS) / 1000 > ((sec_pp * day_feed / 2))) {
+      if (!mid_empty && ((currentMillis - FEED_MILLIS) / 1000 > ((sec_pp * day_feed / 2)))) {
         full = 1;
         digitalWrite(Hoper_motor, LOW);
         DEBUG_PRINTln("Time Overrun");
+        display.clearDisplay();
+        display.setCursor(0, 0);
+        display.println("Time Overrun");
+        display.display();
+        delay(500);
       }
 
-      if (Feeding) {
+      if (Feeding && (door_status==0)) {
         scale_read = reading - zero;
         weight = scale_read * scale_calibration;
 
-        if (Hopper_Weight < weight) {
-          // The hopper needs to be emptied ever 12lb to prevent over filling
-          Hopper_Weight = Hopper_Weight + Hopper_Weight_Max;
-          display.setCursor(0, 0);
-          display.println("To prevent hopper overfill, dumping");
-          display.display();
-          digitalWrite(Hoper_motor, LOW);
-          delay(1000);
-          //  Weight_hold=weight;
-          servoOpen();
-          delay(20000);
-          zero = zero - weight / scale_calibration;
+        if ((Hopper_Weight < weight) || mid_empty) {
+          if (mid_empty == 0) {
+            // The hopper needs to be emptied ever 12lb to prevent over filling
+            digitalWrite(Hoper_motor, LOW);
+            //delay(1000);
+            //  Weight_hold=weight;
+            
+            Hopper_Weight = Hopper_Weight + Hopper_Weight_Max;
+            weight2dump=(weight - (Hopper_Weight - 2*Hopper_Weight_Max));
+            zero = zero - weight2dump / scale_calibration ;
 
-          servoClose();
-          display.setCursor(0, 0);
-          display.println("Weight Hopper Closed");
-          display.display();
-          digitalWrite(Hoper_motor, HIGH);
-
-          FEED_MILLIS = FEED_MILLIS + 21120;
-        }
-        if (!full && (weight < (day_feed / 2))) {
+            //  weight2dump=(weight - (Hopper_Weight - Hopper_Weight_Max));
+            servoOpen();
+            pause_feed = millis();
+            display.setCursor(0, 0);
+            display.println("To prevent hopper overfill, dumping");
+            display.display();
+            
+            //servoClose(20000);
+            
+            mid_empty = 1;
+          } else {
+            if (dumping == 2) {
+              dumping = 0;
+              mid_empty = 0;
+              FEED_MILLIS = FEED_MILLIS + millis() - pause_feed;
+              display.setCursor(0, 0);
+              display.println("Weight Hopper Closed");
+              display.display();
+              digitalWrite(Hoper_motor, HIGH);
+            }
+          }
+        } else if (!full && (weight < (day_feed / 2))) {
           digitalWrite(Hoper_motor, HIGH);
           if (Dispensor == 0) {
             Dispensor = HIGH;
@@ -114,8 +134,6 @@ void processFeedingLogic() {
           DEBUG_PRINT((sec_pp * day_feed / 2));
           DEBUG_PRINTln("Sec");
           DEBUG_PRINT_WAIT("FeedingLOOP");
-
-
         } else if (!full && !full_ish && (weight > (day_feed / 2))) {
           full_ish = HIGH;
           digitalWrite(Hoper_motor, LOW);
@@ -124,48 +142,26 @@ void processFeedingLogic() {
           full = HIGH;
           digitalWrite(Hoper_motor, LOW);
           delay(3000);
-        } else if (full) {
-
-
-          servoOpen();
+        } else if (full && (dumping == 0)) {  // dumping=0  - dump not triggered //  dumping = 1 - actively dumpping   //  dumping = 2 - recently completed dumping
+          //weight=
+          digitalWrite(Hoper_motor, LOW);  //Timmer overrun trigged a full call during the dumping cycle witch triggered the servo open rutine since the dump flag was set to 1 instead of 0
+          servoOpen();  //
+        } else if (full && (dumping == 2)) {
           Feeding = LOW;
           hour_fed = hour_cur + 100 * days;
           EEPROM.put(64, hour_fed);
           EEPROM.commit();
-
-
           create_fed_status_string();
-
-          Link = "";
-
-          Link = "GET /update?api_key=" + apiKey + "&field5=";  //Requeste webpage
-          Link = Link + String(weight);
-          Link = Link + "&field6=";
-          Link = Link + String((currentMillis - FEED_MILLIS) / 1000);
-          Link = Link + "&field7=";
-          Link = Link + String(day_feed / 2);
-          Link = Link + " HTTP/1.1\r\n" + "Host: " + host + "\r\n" + "Connection: close\r\n\r\n";
-          if (client.connect(serverTS, 80)) {
-
-            client.print(Link);
-            DEBUG_PRINT(Link);
-            need2send = LOW;
-
-          } else {
-            need2send == HIGH;
-            WIFI_Connect();
-          }
-          client.stop();
-
-          delay(60000);
-          doorclose();
-
+          writeTS();
+          //delay(60000);
           FEED_NOW = 0;
           do_not_zero = 0;
           Dispensor = LOW;
           digitalWrite(Dis_motor, LOW);
-          Dispensor_Cur = Dispensor_Cur - 1;
-          servoClose();
+          //Dispensor_Cur = Dispensor_Cur - 1;
+          doorclose();
+          servoClose(60000);
+          dumping = 0;
         }
       }
       DEBUG_PRINT_WAIT("FeedingLOOPEdn");
@@ -175,7 +171,7 @@ void processFeedingLogic() {
       myservo.write(open_ang);
       digitalWrite(Hoper_motor, LOW);
       if (opened) {
-        servoClose();
+        servoClose(0);
       }
 
       //   myservoB.write(180);
