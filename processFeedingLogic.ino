@@ -66,7 +66,7 @@ void processFeedingLogic() {
 
       DEBUG_PRINT_WAIT("Checking Feed Needs");
 
-      if (!mid_empty && ((currentMillis - FEED_MILLIS) / 1000 > ((sec_pp * day_feed / 2)))) {
+      if (Feeding&&(!mid_empty && ((currentMillis - FEED_MILLIS) / 1000 > ((sec_pp * day_feed / 2))))) {
         full = 1;
         digitalWrite(Hoper_motor, LOW);
         DEBUG_PRINTln("Time Overrun");
@@ -144,6 +144,8 @@ void processFeedingLogic() {
           delay(3000);
         } else if (full && (dumping == 0)) {  // dumping=0  - dump not triggered //  dumping = 1 - actively dumpping   //  dumping = 2 - recently completed dumping
           //weight=
+          weight_fed=weight;
+          zero = reading;
           digitalWrite(Hoper_motor, LOW);  //Timmer overrun trigged a full call during the dumping cycle witch triggered the servo open rutine since the dump flag was set to 1 instead of 0
           servoOpen();  //
         } else if (full && (dumping == 2)) {
@@ -214,6 +216,6 @@ void create_fed_status_string() {
     Last_f = Last_f + String(minute_cur);
   }
   Last_f = Last_f + " ";
-  Last_f = Last_f + String(weight);
+  Last_f = Last_f + String(weight_fed);
   Last_f = Last_f + "lb";
 }

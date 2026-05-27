@@ -512,6 +512,7 @@ void handleRoot() {
   HTML += String(full);
   HTML += "full_ish: ";
   HTML += String(full_ish);
+
    
 
 
@@ -961,7 +962,7 @@ void drawProgressbar(int x, int y, int width, int height, int progress) {
 
 
 void writeTS() {
-  float value_ts = weight;
+  float value_ts = weight_fed;
   ThingSpeak.setField(5, value_ts);
   value_ts = (currentMillis - FEED_MILLIS) / 1000;
   ThingSpeak.setField(6, value_ts);

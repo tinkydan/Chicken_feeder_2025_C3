@@ -86,6 +86,7 @@ bool Feeding = HIGH;
 bool first_loop = HIGH;
 float day_feed = 0;
 double weight = 0;
+double weight_fed=0;
 bool full = LOW;
 bool full_ish = LOW;
 bool time_aval = LOW;
